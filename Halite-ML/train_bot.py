@@ -1,4 +1,5 @@
 import datetime
+import gzip
 import os
 import sys
 
@@ -36,7 +37,12 @@ size = len(os.listdir(REPLAY_FOLDER))
 for index, replay_name in enumerate(os.listdir(REPLAY_FOLDER)):
     if replay_name[-4:]!='.hlt':continue
     print('Loading {} ({}/{})'.format(replay_name, index, size))
-    replay = json.load(open('{}/{}'.format(REPLAY_FOLDER,replay_name)))
+
+    # replay = json.load(open('{}/{}'.format(REPLAY_FOLDER,replay_name)))
+
+    f = gzip.open('{}/{}'.format(REPLAY_FOLDER,replay_name), 'r')
+    file_content = f.read().decode('utf-8')
+    replay = json.loads(file_content)
 
     frames=np.array(replay['frames'])
     player=frames[:,:,:,0]
@@ -94,7 +100,7 @@ for index, replay_name in enumerate(os.listdir(REPLAY_FOLDER)):
 
         position_indices = stacks[:,0].nonzero()
         sampling_rate = 1/stacks[:,0].mean(axis=(1, 2))[position_indices[0]]
-        sampling_rate *= moves[position_indices].dot(np.array([1,15,15,15,15])) # weight moves 10 times higher than still
+        sampling_rate *= moves[position_indices].dot(np.array([1,30,30,30,30])) # weight moves 10 times higher than still
         sampling_rate /= sampling_rate.sum()
         sample_indices = np.transpose(position_indices)[np.random.choice(np.arange(len(sampling_rate)),
                                                                         min(len(sampling_rate),2048),p=sampling_rate,replace=False)]
@@ -117,11 +123,11 @@ training_target = training_target[indices]
 
 model.fit(training_input,training_target,validation_split=0.2,
           callbacks=[EarlyStopping(patience=10),
-                     ModelCheckpoint('model-3.h5',verbose=1,save_best_only=True),
+                     ModelCheckpoint('model-30.h5',verbose=1,save_best_only=True),
                      tensorboard],
           batch_size=1024, nb_epoch=1000)
 
-model = load_model('model-3.h5')
+model = load_model('model-30.h5')
 
 still_mask = training_target[:,0].astype(bool)
 print('STILL accuracy:',model.evaluate(training_input[still_mask],training_target[still_mask],verbose=0)[1])
