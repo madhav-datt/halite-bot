@@ -2,6 +2,7 @@ import datetime
 import gzip
 import os
 import sys
+import copy
 
 import numpy as np
 import json
@@ -38,11 +39,11 @@ for index, replay_name in enumerate(os.listdir(REPLAY_FOLDER)):
     if replay_name[-4:]!='.hlt':continue
     print('Loading {} ({}/{})'.format(replay_name, index, size))
 
-    # replay = json.load(open('{}/{}'.format(REPLAY_FOLDER,replay_name)))
+    replay = json.load(open('{}/{}'.format(REPLAY_FOLDER,replay_name)))
 
-    f = gzip.open('{}/{}'.format(REPLAY_FOLDER,replay_name), 'r')
-    file_content = f.read().decode('utf-8')
-    replay = json.loads(file_content)
+    # f = gzip.open('{}/{}'.format(REPLAY_FOLDER,replay_name), 'r')
+    # file_content = f.read().decode('utf-8')
+    # replay = json.loads(file_content)
 
     frames=np.array(replay['frames'])
     player=frames[:,:,:,0]
@@ -52,55 +53,18 @@ for index, replay_name in enumerate(os.listdir(REPLAY_FOLDER)):
 
     prod = np.repeat(np.array(replay['productions'])[np.newaxis],replay['num_frames'],axis=0)
     strength = frames[:,:,:,1]
+    ns_flip = copy.deepcopy(replay['moves'])
+    moves_rotations = [ns_flip]
 
-    moves = (np.arange(5) == np.array(replay['moves'])[:,:,:,None]).astype(int)[:128]
+    for flip_moves in moves_rotations:
+        moves = (np.arange(5) == np.array(flip_moves)[:, :, :, None]).astype(int)[:128]
 
-    # Rotate map 4 times and take mirror images to get 8 configurations for each map
-    moves_rotations = [moves]
-
-    # # Rotated over all 3 configurations
-    # for _ in range(0, 3):
-    #     # Single standard rotation
-    #     moves_next = moves.copy()  # copy.deepcopy(moves)
-    #     for moves_next_l1 in moves_next:
-    #         for moves_next_l2 in moves_next_l1:
-    #             for moves_next_l3 in moves_next_l2:
-    #                 index = moves_next_l3.argmax()
-    #                 if index == 0:
-    #                     continue
-    #
-    #                 moves_next_l3[index] = 0
-    #                 next_index = index + 1
-    #                 if next_index == 5:
-    #                     next_index = 1
-    #                 moves_next_l3[next_index] = 1
-    #
-    #     moves_rotations.append(moves_next)
-    #     moves = moves_next
-    #
-    moves_mirrored = []
-    # # North south mirroring for all 4 configurations
-    # for moves in moves_rotations:
-    #     # Single standard rotation
-    #     moves_next = moves.copy()  # copy.deepcopy(moves)
-    #     for moves_next_l1 in moves_next:
-    #         for moves_next_l2 in moves_next_l1:
-    #             for moves_next_l3 in moves_next_l2:
-    #                 index = moves_next_l3.argmax()
-    #                 if index == 0:
-    #                     continue
-    #
-    #                 moves_next_l3[1], moves_next_l3[3] = moves_next_l3[3], moves_next_l3[1]
-    #
-    #     moves_mirrored.append(moves_next)
-
-    for moves in moves_rotations + moves_mirrored:
         stacks = np.array([player==target_id,(player != target_id) & (player!=0),prod/20,strength/255])
         stacks = stacks.transpose(1,0,2,3)[:len(moves)].astype(np.float32)
 
         position_indices = stacks[:,0].nonzero()
         sampling_rate = 1/stacks[:,0].mean(axis=(1, 2))[position_indices[0]]
-        sampling_rate *= moves[position_indices].dot(np.array([1,30,30,30,30])) # weight moves 10 times higher than still
+        sampling_rate *= moves[position_indices].dot(np.array([1,15,15,15,15]))  # weight moves 10 times higher than still
         sampling_rate /= sampling_rate.sum()
         sample_indices = np.transpose(position_indices)[np.random.choice(np.arange(len(sampling_rate)),
                                                                         min(len(sampling_rate),2048),p=sampling_rate,replace=False)]
@@ -123,12 +87,43 @@ training_target = training_target[indices]
 
 model.fit(training_input,training_target,validation_split=0.2,
           callbacks=[EarlyStopping(patience=10),
-                     ModelCheckpoint('model-30.h5',verbose=1,save_best_only=True),
+                     ModelCheckpoint('model-test.h5',verbose=1,save_best_only=True),
                      tensorboard],
           batch_size=1024, nb_epoch=1000)
 
-model = load_model('model-30.h5')
+model = load_model('model-test.h5')
 
 still_mask = training_target[:,0].astype(bool)
 print('STILL accuracy:',model.evaluate(training_input[still_mask],training_target[still_mask],verbose=0)[1])
 print('MOVE accuracy:',model.evaluate(training_input[~still_mask],training_target[~still_mask],verbose=0)[1])
+
+# # Flip along NS and EW to get 4 configurations
+# ns_flip = copy.deepcopy(replay['moves'])
+# for i in range(len(replay['moves'])):  # For each frame
+#     for j in range(len(replay['moves'][0])):  # For each row along height
+#         for k in range(len(replay['moves'][0][0])):  # For each move along row
+#             if ns_flip[i][j][k] == 1:
+#                 ns_flip[i][j][k] = 3
+#             elif ns_flip[i][j][k] == 3:
+#                 ns_flip[i][j][k] = 1
+# moves_rotations.append(ns_flip)
+#
+# ew_flip = copy.deepcopy(replay['moves'])
+# for i in range(len(replay['moves'])):  # For each frame
+#     for j in range(len(replay['moves'][0])):  # For each row along height
+#         for k in range(len(replay['moves'][0][0])):  # For each move along row
+#             if ew_flip[i][j][k] == 2:
+#                 ew_flip[i][j][k] = 4
+#             elif ew_flip[i][j][k] == 2:
+#                 ew_flip[i][j][k] = 4
+# moves_rotations.append(ew_flip)
+#
+# ns_ew_flip = copy.deepcopy(ns_flip)
+# for i in range(len(replay['moves'])):  # For each frame
+#     for j in range(len(replay['moves'][0])):  # For each row along height
+#         for k in range(len(replay['moves'][0][0])):  # For each move along row
+#             if ns_ew_flip[i][j][k] == 2:
+#                 ns_ew_flip[i][j][k] = 4
+#             elif ns_ew_flip[i][j][k] == 2:
+#                 ns_ew_flip[i][j][k] = 4
+# moves_rotations.append(ns_ew_flip)

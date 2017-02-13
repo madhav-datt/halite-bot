@@ -73,7 +73,7 @@ def getInit():
     deserializeProductions(getString())
     m = deserializeMap(getString())
 
-    return (playerTag, m)
+    return playerTag, m
 
 
 def sendInit(name):
