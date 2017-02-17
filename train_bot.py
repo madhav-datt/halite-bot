@@ -39,11 +39,12 @@ for index, replay_name in enumerate(os.listdir(REPLAY_FOLDER)):
     if replay_name[-4:]!='.hlt':continue
     print('Loading {} ({}/{})'.format(replay_name, index, size))
 
-    replay = json.load(open('{}/{}'.format(REPLAY_FOLDER,replay_name)))
-
-    # f = gzip.open('{}/{}'.format(REPLAY_FOLDER,replay_name), 'r')
-    # file_content = f.read().decode('utf-8')
-    # replay = json.loads(file_content)
+    try:
+        replay = json.load(open('{}/{}'.format(REPLAY_FOLDER,replay_name)))
+    except AttributeError:
+        f = gzip.open('{}/{}'.format(REPLAY_FOLDER,replay_name), 'r')
+        file_content = f.read().decode('utf-8')
+        replay = json.loads(file_content)
 
     frames=np.array(replay['frames'])
     player=frames[:,:,:,0]
