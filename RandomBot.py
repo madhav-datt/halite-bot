@@ -1,8 +1,12 @@
-import hlt
-from hlt import NORTH, EAST, SOUTH, WEST, STILL, Move
+#
+# Baseline Overkill Bot based on nmalaguti's starter pack
+#
+
+import hltold as hlt
+from hltold import NORTH, EAST, SOUTH, WEST, STILL, Move
 
 myID, game_map = hlt.get_init()
-hlt.send_init("CurrentBestBot")
+hlt.send_init("BaselineBot")
 
 
 def find_nearest_enemy_direction(square):
