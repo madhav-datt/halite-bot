@@ -95,4 +95,3 @@ while True:
             moves_output.append(Move(Location(positions[i][1], positions[i][0]), output[i].argmax()))
 
     sendFrame(moves_output)
-    # sendFrame([Move(Location(positions[i][1], positions[i][0]), output[i].argmax()) for i in range(len(positions))])
